@@ -18,7 +18,6 @@ package raft
 //
 
 import (
-	"fmt"
 	"math/rand"
 	//	"bytes"
 	"sync"
@@ -291,7 +290,7 @@ func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 		reply.VoteGranted = true
 
 		rf.timer.Reset(rf.overtime)
-		fmt.Printf("[	    func-RequestVote-rf(%v)		] : voted rf[%v]\n", rf.me, rf.votedFor)
+		//fmt.Printf("[	    func-RequestVote-rf(%v)		] : voted rf[%v]\n", rf.me, rf.votedFor)
 	} else {
 		reply.VoteState = Voted
 		reply.VoteGranted = false
@@ -306,7 +305,7 @@ func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 		}
 
 		rf.timer.Reset(rf.overtime)
-		fmt.Printf("[	    func-RequestVote-rf(%v)		] : already voted rf[%v]\n", rf.me, rf.votedFor)
+		//fmt.Printf("[	    func-RequestVote-rf(%v)		] : already voted rf[%v]\n", rf.me, rf.votedFor)
 	}
 
 	//fmt.Printf("[	    func-RequestVote-rf(%v)		] : Boss my term is  term[%v]\n", rf.me, rf.currentTerm)
@@ -377,7 +376,7 @@ func (rf *Raft) sendRequestVote(server int, args *RequestVoteArgs, reply *Reques
 			if reply.VoteGranted && reply.Term == rf.currentTerm && *voteNums <= (len(rf.peers)/2) {
 				*voteNums++
 			}
-			fmt.Printf("[	sendRequestVote-func-rf(%v)		] try to be a leader with vote num : [%v]\n", rf.me, *voteNums)
+			//fmt.Printf("[	sendRequestVote-func-rf(%v)		] try to be a leader with vote num : [%v]\n", rf.me, *voteNums)
 
 			// 票数超过一半
 			if *voteNums >= (len(rf.peers)/2)+1 {
@@ -395,7 +394,7 @@ func (rf *Raft) sendRequestVote(server int, args *RequestVoteArgs, reply *Reques
 					rf.nextIndex[i] = len(rf.logs) + 1
 				}
 				rf.timer.Reset(HeartBeatTimeout)
-				fmt.Printf("[	sendRequestVote-func-rf(%v)		] be a leader\n", rf.me)
+				//fmt.Printf("[	sendRequestVote-func-rf(%v)		] be a leader\n", rf.me)
 			}
 		}
 	case Killed:
@@ -419,7 +418,7 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply
 	reply.Term = rf.currentTerm
 	reply.Success = true
 
-	fmt.Printf("      [Now %v leader sent heatbeat to %v]\n             ", args.LeaderId, rf.me)
+	//fmt.Printf("      [Now %v leader sent heatbeat to %v]\n             ", args.LeaderId, rf.me)
 	return
 }
 
@@ -513,7 +512,7 @@ func (rf *Raft) ticker() {
 				// 每轮选举开始时，重新设置选举超时
 				rf.overtime = time.Duration(150+rand.Intn(200)) * time.Millisecond // 随机产生200-400ms
 				rf.timer.Reset(rf.overtime)
-				fmt.Printf("   I am raft server : %v,  I voted for %v        \n", rf.me, rf.votedFor)
+				//fmt.Printf("   I am raft server : %v,  I voted for %v        \n", rf.me, rf.votedFor)
 				// 对自身以外的节点进行选举
 				for i := 0; i < len(rf.peers); i++ {
 					if i == rf.me {
@@ -531,7 +530,7 @@ func (rf *Raft) ticker() {
 					}
 
 					voteReply := RequestVoteReply{}
-					fmt.Printf("[	ticker(%v) ] : send a election to %v\n", rf.me, i)
+					//fmt.Printf("[	ticker(%v) ] : send a election to %v\n", rf.me, i)
 					go rf.sendRequestVote(i, &voteArgs, &voteReply, &votedNums)
 				}
 			case Leader:
@@ -598,7 +597,8 @@ func Make(peers []*labrpc.ClientEnd, me int,
 	rf.readPersist(persister.ReadRaftState())
 
 	// start ticker goroutine to start elections
-	fmt.Printf("Hi I num : %v create a go routine in there \n", rf.me)
+	//
+	//fmt.Printf("Hi I num : %v create a go routine in there \n", rf.me)
 	go rf.ticker()
 
 	return rf
