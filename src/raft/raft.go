@@ -138,9 +138,10 @@ type AppendEntriesArgs struct {
 }
 
 type AppendEntriesReply struct {
-	Term     int                // leader的term可能是过时的，此时收到的Term用于更新他自己
-	Success  bool               //	如果follower与Args中的PreLogIndex/PreLogTerm都匹配才会接过去新的日志（追加），不匹配直接返回false
-	AppState AppendEntriesState // 追加状态
+	Term        int                // leader的term可能是过时的，此时收到的Term用于更新他自己
+	Success     bool               //	如果follower与Args中的PreLogIndex/PreLogTerm都匹配才会接过去新的日志（追加），不匹配直接返回false
+	AppState    AppendEntriesState // 追加状态
+	UpNextIndex int                //  用于更新请求节点的nextIndex[i]
 }
 
 // return currentTerm and whether this server
@@ -418,6 +419,13 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply
 	reply.Term = rf.currentTerm
 	reply.Success = true
 
+	// 如果存在日志包那么进行追加
+	if args.Entries != nil {
+		rf.logs = rf.logs[:args.PrevLogIndex]
+		rf.logs = append(rf.logs, args.Entries...)
+
+	}
+
 	//fmt.Printf("      [Now %v leader sent heatbeat to %v]\n             ", args.LeaderId, rf.me)
 	return
 }
@@ -456,6 +464,26 @@ func (rf *Raft) Start(command interface{}) (int, int, bool) {
 	isLeader := true
 
 	// Your code here (2B).
+
+	if rf.killed() {
+		return index, term, false
+	}
+
+	rf.mu.Lock()
+	defer rf.mu.Unlock()
+
+	// 如果不是leader，直接返回
+	if rf.status != Leader {
+		return index, term, false
+	}
+
+	isLeader = true
+
+	// 初始化日志条目。并进行追加
+	appendLog := LogEntry{Term: rf.currentTerm, Command: command}
+	rf.logs = append(rf.logs, appendLog)
+	index = len(rf.logs)
+	term = rf.currentTerm
 
 	return index, term, isLeader
 }
@@ -541,18 +569,35 @@ func (rf *Raft) ticker() {
 					if i == rf.me {
 						continue
 					}
-					appendEntriesArgs := AppendEntriesArgs{
+					args := AppendEntriesArgs{
 						Term:         rf.currentTerm,
 						LeaderId:     rf.me,
 						PrevLogIndex: 0,
 						PrevLogTerm:  0,
 						Entries:      nil,
-						LeaderCommit: rf.commitIndex,
+						LeaderCommit: rf.commitIndex, // commitIndex为大多数log所认可的commitIndex
 					}
 
-					appendEntriesReply := AppendEntriesReply{}
+					reply := AppendEntriesReply{}
+
+					// update for Lab2B
+					// build a new begining log
+
+					// 如果nextIndex[i]长度不等于rf.logs,代表与leader的log entries不一致，需要附带过去
+					if len(rf.logs) != rf.nextIndex[i] {
+						args.Entries = rf.logs[rf.nextIndex[i]-1:]
+					}
+
+					// 代表已经不是初始值0
+					if rf.nextIndex[i] > 0 {
+						args.PrevLogIndex = rf.nextIndex[i] - 1
+					}
+
+					if args.PrevLogIndex > 0 {
+						args.PrevLogTerm = rf.logs[args.PrevLogIndex-1].Term
+					}
 					//fmt.Printf("[	ticker(%v) ] : send a election to %v\n", rf.me, i)
-					go rf.sendAppendEntries(i, &appendEntriesArgs, &appendEntriesReply, &appendNums)
+					go rf.sendAppendEntries(i, &args, &reply, &appendNums)
 				}
 			}
 			rf.mu.Unlock()
